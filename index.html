@@ -1122,18 +1122,6 @@ const closeOv=(e,id)=>{if(e.target.classList.contains('ov'))document.getElementB
 // INIT
 const init=()=>{
   applyTheme(cfg.theme);initCal();initNotif();renderHome();renderSet();checkNotifs();
-  if(!sessions.length){
-    clients=[{id:'c1',name:'Ayşe Kaya'},{id:'c2',name:'Mehmet Demir'},{id:'c3',name:'Selin Çelik'}];
-    const now=new Date(),h=now.getHours(),d=td();
-    const mk=(cid,date,time,dur,brut,kdv)=>{const kdvT=Math.round(brut*kdv/100);return{id:uid(),cid,date,time,dur,brut,kdv,kdvT,net:brut-kdvT}};
-    sessions=[
-      mk('c1',d,`${String(Math.max(7,h-1)).padStart(2,'0')}:00`,50,3000,10),
-      mk('c2',d,`${String(h).padStart(2,'0')}:00`,50,4500,20),
-      mk('c3',d,`${String(Math.min(21,h+1)).padStart(2,'0')}:00`,90,3000,0),
-    ];
-    for(let i=1;i<=30;i++){const dd=new Date();dd.setDate(dd.getDate()-i);const ds=dd.toISOString().slice(0,10);sessions.push(mk(['c1','c2','c3'][i%3],ds,'10:00',50,[3000,4500,3000][i%3],[10,20,0][i%3]));}
-    sv();renderHome();
-  }
 };
 // IKON SVG fallback
 const SVGICONS={
