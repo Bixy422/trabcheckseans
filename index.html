@@ -427,6 +427,16 @@ html,body{height:100%;font-family:'DM Sans',sans-serif;background:#c0ab88;color:
   </div>
 </div>
 
+<!-- DANISAN DUZENLE MODAL -->
+<div class="ov" id="ecli-ov" onclick="closeOv(event,'ecli-ov')">
+<div class="modal">
+  <div class="mhandle"></div>
+  <div class="mtitle">Danisani Duzenle</div>
+  <div class="fg"><label class="fl">Isim</label><input class="fi" id="ec-name" placeholder="Danisan adi"></div>
+  <button class="sub-btn" onclick="saveClientEdit()">Kaydet</button>
+</div>
+</div>
+
 <!-- DUZENLE MODAL -->
 <div class="ov" id="edit-ov" onclick="closeOv(event,'edit-ov')">
 <div class="modal">
@@ -479,7 +489,7 @@ let sessions=JSON.parse(localStorage.getItem('st_s')||'[]');
 let clients=JSON.parse(localStorage.getItem('st_c')||'[]');
 let cfg=JSON.parse(localStorage.getItem('st_cfg')||JSON.stringify({bh:40,be:1000,nm:0,dk:0,theme:'light',notifMin:15,defaultDur:45}));
 let importedData=JSON.parse(localStorage.getItem('st_imp')||'[]');
-let calY,calM,calSel,calMSel=[],period='ay',anTab='genel',rows=[],rowN=0,notifSent={},compYear=new Date().getFullYear(),selCompMonths=[];
+let calY,calM,calSel,calMSel=[],calMulti=false,period='ay',anTab='genel',rows=[],rowN=0,notifSent={},compYear=new Date().getFullYear(),selCompMonths=[];
 
 const sv=()=>{localStorage.setItem('st_s',JSON.stringify(sessions));localStorage.setItem('st_c',JSON.stringify(clients));localStorage.setItem('st_cfg',JSON.stringify(cfg));localStorage.setItem('st_imp',JSON.stringify(importedData))};
 const fmt=n=>new Intl.NumberFormat('tr-TR').format(Math.round(n));
@@ -541,7 +551,7 @@ const goSc=(id,el)=>{
   document.querySelectorAll('.ni').forEach(b=>b.classList.remove('on'));
   if(el)el.classList.add('on');
   if(id==='home')renderHome();
-  if(id==='cal')renderCal();
+  if(id==='cal'){calMulti=false;calMSel=[];renderCal();}
   if(id==='an'){renderAn();renderCompGrid();}
   if(id==='set')renderSet();
   if(id==='cli')renderClients();
@@ -657,38 +667,88 @@ const renderCal=()=>{
   for(let i=0;i<sd;i++)h+=`<div class="cday om">${dip-sd+1+i}</div>`;
   for(let d=1;d<=dim;d++){
     const ds=`${calY}-${String(calM+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-    const hs=sessions.some(s=>s.date===ds),it=ds===tdd,isl=ds===calSel||calMSel.includes(ds);
-    h+=`<div class="cday${it?' today':''}${hs?' has-s':''}${isl?' sel':''}" onclick="calSel2('${ds}')">${d}</div>`;
+    const hs=sessions.some(s=>s.date===ds),it=ds===tdd,isl=calMulti?calMSel.includes(ds):ds===calSel;
+    h+=`<div class="cday${it?' today':''}${hs?' has-s':''}${isl?' sel':''}" onclick="calDayClick('${ds}')">${d}</div>`;
   }
   document.getElementById('cgrid').innerHTML=h;
   renderDayList(calSel||tdd);
 };
-const calSel2=d=>{calSel=d;const i=calMSel.indexOf(d);if(i>=0)calMSel.splice(i,1);else calMSel.push(d);calMSel.sort();renderCal();};
-const calMSelClear=()=>{calMSel=[];renderCal();};
-const calMSelAdd=()=>{if(!calMSel.length)return;const arr=calMSel.slice();openAdd(arr[0]);const extra=arr.slice(1);if(extra.length){setTimeout(()=>{extra.forEach(ds=>{const id='r'+(++rowN);rows.push({id,name:'',cid:null,time:'',dur:cfg.defaultDur||45,brut:'',kdv:cfg.dk,note:'',_date:ds});});renderRows();},180);}calMSel=[];};
+const calDayClick=d=>{
+  if(calMulti){
+    // Coklu mod: gun sec/birak
+    const i=calMSel.indexOf(d);
+    if(i>=0)calMSel.splice(i,1);else calMSel.push(d);
+    calMSel.sort();
+    renderCal();
+  } else {
+    // Normal mod: sadece o gunu sec, listesini goster
+    calSel=d;
+    renderCal();
+  }
+};
+const calStartMulti=()=>{
+  // Coklu secim modunu baslat, mevcut secili gunu ilk secim yap
+  calMulti=true;
+  calMSel=calSel?[calSel]:[];
+  renderCal();
+};
+const calCancelMulti=()=>{calMulti=false;calMSel=[];renderCal();};
+const calMSelAdd=()=>{
+  if(!calMSel.length){toast('En az bir gun secin');return;}
+  const arr=calMSel.slice().sort();
+  calMulti=false;
+  openAdd(arr[0]);
+  const extra=arr.slice(1);
+  if(extra.length){
+    setTimeout(()=>{
+      extra.forEach(ds=>{const id='r'+(++rowN);rows.push({id,name:'',cid:null,time:'',dur:cfg.defaultDur||45,brut:'',kdv:cfg.dk,note:'',_date:ds});});
+      renderRows();
+    },180);
+  }
+  calMSel=[];
+};
 const renderDayList=d=>{
+  // COKLU MOD: ust banner + secili gunler + ekle butonu
+  if(calMulti){
+    document.getElementById('cdt').textContent='Tarihleri sec';
+    let h='<div style="margin-bottom:10px;background:var(--acs);border-radius:var(--r2);padding:12px 14px">';
+    h+='<div style="font-size:13px;font-weight:600;color:var(--act);margin-bottom:4px">Coklu Seans Ekleme</div>';
+    h+='<div style="font-size:12px;color:var(--act);opacity:.8">Takvimden istedigin gunlere dokun, secili gunler isaretlenir</div>';
+    h+='</div>';
+    if(calMSel.length){
+      h+='<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">';
+      calMSel.forEach(ds=>{const p=ds.split('-');h+='<span style="display:inline-flex;align-items:center;gap:5px;background:var(--card);border:.5px solid var(--cb);border-radius:20px;padding:5px 11px;font-size:12px;font-weight:500;color:var(--t1)">'+parseInt(p[2])+' '+MNS_S[parseInt(p[1])-1]+' <span onclick="calDayClick(\''+ds+'\')" style="cursor:pointer;color:var(--rd);font-size:14px;line-height:1">&times;</span></span>';});
+      h+='</div>';
+    } else {
+      h+='<div style="text-align:center;padding:16px;color:var(--t3);font-size:13px">Henuz gun secilmedi</div>';
+    }
+    h+='<div style="display:flex;gap:8px;margin-top:4px">';
+    h+='<button onclick="calCancelMulti()" style="flex:1;padding:13px;border-radius:var(--r3);border:.5px solid var(--br2);background:transparent;color:var(--t2);font-size:14px;font-weight:600;cursor:pointer;font-family:inherit">Vazgec</button>';
+    h+='<button onclick="calMSelAdd()" style="flex:2;padding:13px;border-radius:var(--r3);border:none;background:linear-gradient(145deg,var(--ac2),var(--ac));color:#fff;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit">'+(calMSel.length||'')+' Gun Icin Seans Ekle</button>';
+    h+='</div>';
+    document.getElementById('dlist').innerHTML=h;
+    return;
+  }
+  // NORMAL MOD: o gunun seanslari + tek seans ekle butonu
   const ss=dayS(d).sort((a,b)=>a.time.localeCompare(b.time));
   const p=d.split('-');
   document.getElementById('cdt').textContent=parseInt(p[2])+' '+MNS[parseInt(p[1])-1];
   let h='';
-  if(calMSel.length>1){
-    h+='<div style="margin-bottom:8px;display:flex;align-items:center;gap:8px;background:var(--acs);border-radius:var(--r2);padding:10px 14px">';
-    h+='<span style="flex:1;font-size:13px;font-weight:600;color:var(--act)">'+calMSel.length+' gun secili</span>';
-    h+='<button onclick="calMSelAdd()" style="padding:7px 16px;border-radius:30px;background:var(--ac);color:#fff;border:none;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">Seans Ekle</button>';
-    h+='<button onclick="calMSelClear()" style="background:none;border:none;color:var(--t3);font-size:20px;cursor:pointer;line-height:1;padding:0 6px">&times;</button>';
-    h+='</div>';
+  if(ss.length){
+    for(let k=0;k<ss.length;k++){
+      const s=ss[k];
+      const cl=clients.find(c=>c.id===s.cid)||{name:'?'};
+      const a=avc(cl.name);
+      h+='<div class="day-all-item" onclick="openDet(\''+s.id+'\')">';
+      h+='<div class="av" style="width:40px;height:40px;font-size:13px;border-radius:12px;background:'+a[0]+';color:'+a[1]+'">'+ini(cl.name)+'</div>';
+      h+='<div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:500">'+cl.name+'</div><div style="font-size:12px;color:var(--t3);margin-top:2px">'+s.time+' &middot; '+s.dur+' dk</div></div>';
+      h+='<div style="text-align:right;flex-shrink:0"><div style="font-size:14px;font-weight:600">'+fmt(s.brut)+' TL</div><div style="font-size:11px;color:var(--t3)">Net '+fmt(s.net)+' TL</div></div>';
+      h+='</div>';
+    }
+  } else {
+    h+='<div style="text-align:center;padding:24px 0;color:var(--t3);font-size:13px">Bu gun seans yok</div>';
   }
-  for(let k=0;k<ss.length;k++){
-    const s=ss[k];
-    const cl=clients.find(c=>c.id===s.cid)||{name:'?'};
-    const a=avc(cl.name);
-    h+='<div class="day-all-item" onclick="openDet(\''+s.id+'\')">';
-    h+='<div class="av" style="width:40px;height:40px;font-size:13px;border-radius:12px;background:'+a[0]+';color:'+a[1]+'">'+ini(cl.name)+'</div>';
-    h+='<div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:500">'+cl.name+'</div><div style="font-size:12px;color:var(--t3);margin-top:2px">'+s.time+' &middot; '+s.dur+' dk</div></div>';
-    h+='<div style="text-align:right;flex-shrink:0"><div style="font-size:14px;font-weight:600">'+fmt(s.brut)+' TL</div><div style="font-size:11px;color:var(--t3)">Net '+fmt(s.net)+' TL</div></div>';
-    h+='</div>';
-  }
-  h+='<button onclick="openAddD(\''+d+'\')" style="width:100%;padding:13px;border-radius:var(--r2);border:1.5px dashed var(--br2);background:transparent;color:var(--act);font-size:14px;font-weight:500;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:6px;margin-top:6px"><i class="ti ti-plus"></i>Seans ekle</button>';
+  h+='<button onclick="calStartMulti()" style="width:100%;padding:13px;border-radius:var(--r2);border:1.5px dashed var(--br2);background:transparent;color:var(--act);font-size:14px;font-weight:500;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:6px;margin-top:6px"><i class="ti ti-plus"></i>Seans ekle</button>';
   document.getElementById('dlist').innerHTML=h;
 };
 
@@ -926,8 +986,12 @@ const openClient=id=>{
   const thisMonth=cs.filter(s=>s.date.startsWith(now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0'))).length;
   const totalNet=cs.reduce((x,s)=>x+s.net,0);
   const totalBrut=cs.reduce((x,s)=>x+s.brut,0);
-  let h='<div class="row mb16"><div class="av" style="width:52px;height:52px;font-size:19px;border-radius:16px;background:'+a[0]+';color:'+a[1]+'">'+ini(c.name)+'</div>';
-  h+='<div><div style="font-family:\'DM Serif Display\',serif;font-size:23px">'+c.name+'</div><div style="font-size:12px;color:var(--t3)">'+cs.length+' seans kayitli</div></div></div>';
+  let h='<div class="row between mb16"><div class="row" style="flex:1;min-width:0"><div class="av" style="width:52px;height:52px;font-size:19px;border-radius:16px;background:'+a[0]+';color:'+a[1]+'">'+ini(c.name)+'</div>';
+  h+='<div style="min-width:0"><div style="font-family:\'DM Serif Display\',serif;font-size:23px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+c.name+'</div><div style="font-size:12px;color:var(--t3)">'+cs.length+' seans kayitli</div></div></div>';
+  h+='<div class="row" style="gap:6px;flex-shrink:0">';
+  h+='<button onclick="editClient(\''+id+'\')" style="width:38px;height:38px;border-radius:12px;border:.5px solid var(--cb);background:var(--card);color:var(--t2);cursor:pointer;display:flex;align-items:center;justify-content:center"><i class="ti ti-edit" style="font-size:18px"></i></button>';
+  h+='<button onclick="deleteClient(\''+id+'\')" style="width:38px;height:38px;border-radius:12px;border:none;background:var(--rds);color:var(--rd);cursor:pointer;display:flex;align-items:center;justify-content:center"><i class="ti ti-trash" style="font-size:18px"></i></button>';
+  h+='</div></div>';
   // istatistik kartlari
   h+='<div class="dstat"><div class="dsc"><div class="dsc-v">'+thisMonth+'</div><div class="dsc-l">Bu ay</div></div>';
   h+='<div class="dsc"><div class="dsc-v">'+cs.length+'</div><div class="dsc-l">Toplam seans</div></div>';
@@ -948,6 +1012,47 @@ const openClient=id=>{
   }
   document.getElementById('client-content').innerHTML=h;
   document.getElementById('client-ov').classList.add('open');setTimeout(fixIcons,50);
+};
+
+const deleteClient=id=>{
+  const c=clients.find(x=>x.id===id);if(!c)return;
+  const cnt=sessions.filter(s=>s.cid===id).length;
+  const msg=cnt>0
+    ? c.name+' ve bu kisiye ait '+cnt+' seans kalici olarak silinecek. Geri alinamaz!'
+    : c.name+' silinecek. Geri alinamaz!';
+  document.getElementById('client-ov').classList.remove('open');
+  setTimeout(()=>{
+    askConfirm('Danisani Sil',msg,()=>{
+      sessions=sessions.filter(s=>s.cid!==id);
+      clients=clients.filter(x=>x.id!==id);
+      sv();
+      renderClients();renderHome();
+      if(document.getElementById('sc-cal').classList.contains('active'))renderCal();
+      if(document.getElementById('sc-an').classList.contains('active'))renderAn();
+      toast('Danisan silindi');
+    },true);
+  },200);
+};
+
+let _ecId=null;
+const editClient=id=>{
+  const c=clients.find(x=>x.id===id);if(!c)return;
+  _ecId=id;
+  document.getElementById('ec-name').value=c.name;
+  document.getElementById('client-ov').classList.remove('open');
+  setTimeout(()=>document.getElementById('ecli-ov').classList.add('open'),200);
+};
+const saveClientEdit=()=>{
+  if(!_ecId)return;
+  const name=document.getElementById('ec-name').value.trim();
+  if(!name){toast('Isim bos olamaz');return;}
+  const c=clients.find(x=>x.id===_ecId);
+  if(c)c.name=name;
+  sv();
+  document.getElementById('ecli-ov').classList.remove('open');
+  toast('Danisan guncellendi');
+  renderClients();renderHome();
+  if(document.getElementById('sc-cal').classList.contains('active'))renderCal();
 };
 
 const openAddFor=cid=>{
